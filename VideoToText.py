@@ -1,6 +1,6 @@
 from google.colab import drive
 drive.mount('/content/gdrive/', force_remount=True)
-DrivePath = '/content/gdrive/MyDrive/vidcap/'
+DrivePath = '/content/gdrive/MyDrive/Video Bite - Grad/Projects/vidcap/'
 
 import tensorflow as tf
 import pandas as pd
