@@ -14,12 +14,10 @@ from keras.preprocessing import sequence
 data_path = DrivePath + "Dataset/"
 
 class vidcapModel:
-    def __init__(self, dim_image, n_words, dim_hidden, batch_size, n_lstm_steps, n_video_lstm_step, n_caption_lstm_step, bias_init_vector=None):
+    def __init__(self, dim_image, n_words, dim_hidden, n_video_lstm_step, n_caption_lstm_step, bias_init_vector=None):
         self.dim_image = dim_image
         self.n_words = n_words
         self.dim_hidden = dim_hidden
-        self.batch_size = batch_size
-        self.n_lstm_steps = n_lstm_steps
         self.n_video_lstm_step=n_video_lstm_step
         self.n_caption_lstm_step=n_caption_lstm_step
 
@@ -39,7 +37,6 @@ class vidcapModel:
             self.embed_word_b = tf.Variable(tf.zeros([n_words]), name='embed_word_b')
 
     def build_generator(self):
-        # batch_size = 1
         video = tf.placeholder(tf.float32, [1, self.n_video_lstm_step, self.dim_image]) # (80, 4096)
         video_mask = tf.placeholder(tf.float32, [1, self.n_video_lstm_step])
 
@@ -96,18 +93,12 @@ class vidcapController:
     n_caption_lstm_step = 20
     n_frame_step = 80
 
-    n_epochs = 1000
-    batch_size = 50
-    learning_rate = 0.0001
-
     ixtoword = pd.Series(np.load(DrivePath + 'ixtoword_special.npy').tolist())
 
     model = vidcapModel(
                 dim_image=dim_image,
                 n_words=len(ixtoword),
                 dim_hidden=dim_hidden,
-                batch_size=batch_size,
-                n_lstm_steps=n_frame_step,
                 n_video_lstm_step=n_video_lstm_step,
                 n_caption_lstm_step=n_caption_lstm_step)
         
@@ -124,7 +115,6 @@ class vidcapController:
         
     def GenerateCaption(self):
         for idx, video_feat in self.test_features:
-            #print(idx)
             video_feat = video_feat.reshape(1,80,4096)
             #print(video_feat.shape)
             if video_feat.shape[1] == self.n_frame_step:
