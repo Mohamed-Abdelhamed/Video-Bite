@@ -4,7 +4,7 @@ import numpy as np
 
 general_path = "/media/mark/G/Downloads/Graduation project/FRAMES CODES/S2VT/"
 data_path = general_path + "data/"
-model_path = general_path + "models/model-230"
+model_path = "/media/mark/G/Video-Bite/models/videoToText/model-230"
 videos_path = data_path + "testing_data/feat/"
 
 class VideoToText:
