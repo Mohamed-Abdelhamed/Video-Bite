@@ -1,6 +1,7 @@
 from Emotion import DetectEmotionController
 from Audio import SpeechToText
-from VideoCaption import VideoToText , featureExtraction
+from video.VideoCaption import VideoToText
+# from VideoCaption import VideoToText , featureExtraction
 class summaryParts:
    def __init__(self):
       self.__audio = []
@@ -41,15 +42,19 @@ class SummaryBuilder(Builder):
       self.video = video
    
    def buildAudio(self):
+      # print(self.video)
+      # exit()
       audio = SpeechToText(self.video) #audio extraction class
       self.parts.setAudio(audio.getaudio()) 
       #self.parts.setAudio(self.video+" ana msh ananeya ananeya ana 3yzak leya lw7dy") 
    
    def buildCaption(self):
       #videofeat = featureExtraction(self.video)
-      #videoText = VideoToText(videofeat.extractFeatures()) #video to text extraction class
-      videoText = VideoToText(['04Gt01vatkk_248_265.avi'])
+      #videoText = VideoToText(videofeat.extractFeatures()) #video to text extraction class      
+      videoText = VideoToText(self.video.rsplit('.', -1)[0]) # take video name without extenions (ex .mp4)
+      # videoText = VideoToText(['04Gt01vatkk_248_265.avi'])
       self.parts.setCaption(videoText.extractText())
+      # self.parts.setCaption("This is sentence")
    
    def buildEmotion(self):
       print('videoooooooooooooooooooooooooooooooo')
