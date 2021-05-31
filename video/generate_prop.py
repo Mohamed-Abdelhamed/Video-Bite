@@ -67,11 +67,7 @@ def load_features_from_npy(feature_paths: Dict[str, str], start: float, end: flo
     '''
 
     # load features. Please see README in the root folder for info on video features extraction
-    print("pathhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh")
-    feature_paths['audio'] = "/home/fadybassel/videobite/public/"+feature_paths['audio']
-    feature_paths['rgb'] = "/home/fadybassel/videobite/public/"+feature_paths['rgb']
-    feature_paths['flow'] = "/home/fadybassel/videobite/public/"+feature_paths['flow']
-    stack_vggish = np.load(feature_paths['audio'] )
+    stack_vggish = np.load(feature_paths['audio'])
     stack_rgb = np.load(feature_paths['rgb'])
     stack_flow = np.load(feature_paths['flow'])
 
@@ -91,9 +87,9 @@ def load_features_from_npy(feature_paths: Dict[str, str], start: float, end: flo
         stack_flow = crop_a_segment(stack_flow, start, end, duration)
 
     # add batch dimension, send to device
-    stack_vggish = stack_vggish.to(torch.device("cpu")).unsqueeze(0)
-    stack_rgb = stack_rgb.to(torch.device("cpu")).unsqueeze(0)
-    stack_flow = stack_flow.to(torch.device("cpu")).unsqueeze(0)
+    stack_vggish = stack_vggish.to(torch.device(device)).unsqueeze(0)
+    stack_rgb = stack_rgb.to(torch.device(device)).unsqueeze(0)
+    stack_flow = stack_flow.to(torch.device(device)).unsqueeze(0)
 
     return {'audio': stack_vggish,'rgb': stack_rgb,'flow': stack_flow}
 
