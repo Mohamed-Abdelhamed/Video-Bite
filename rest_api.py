@@ -4,6 +4,8 @@ from flask import Flask, request, jsonify
 from flask_restful import Resource, Api
 from builder import SummaryBuilder,Director
 from Fusion import Fusion
+from keywords import extractKeywords
+from timestamps import generateTimestamps
 import numpy as np
 import threading
 import requests as req
@@ -34,7 +36,9 @@ class ProcessVideoController(Resource):
             predicted_emotion = emotions[np.argmax(parts.getEmotion())]
             # predicted_emotion= ''
             fusion = F.fusion(parts.getAudio(),parts.getCaption(),predicted_emotion)
-            dictToSend = {'video_id':video_id,'summary':fusion}
+            timestamps = generateTimestamps(parts.getCaption())
+            keyowrds = extractKeywords(parts.fusion)
+            dictToSend = {'video_id':video_id,'summary':fusion,'timestamps':timestamps,'keywords':keyowrds}
             print(dictToSend)
             #res = req.post('http://192.168.1.9:8001/api/VideoSummaryUpdate', json=dictToSend)
             #print ('response from server:')
