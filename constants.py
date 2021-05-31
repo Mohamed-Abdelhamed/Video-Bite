@@ -1,4 +1,4 @@
-DEFAULT_PATH = "/home/markrefaat/videobite/public"
+DEFAULT_PATH = "/home/fadybassel/videobite/public"
 
 # VIDEO CAPTION PATHES
 PROP_GENERATOR_MODEL_PATH = "./video/sample/best_prop_model.pt"

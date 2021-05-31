@@ -1,5 +1,8 @@
 import argparse
-from constants import DEFAULT_PATH, PRETRAINED_CAP_MODEL_PATH, PROP_GENERATOR_MODEL_PATH
+# from constants import DEFAULT_PATH, PRETRAINED_CAP_MODEL_PATH, PROP_GENERATOR_MODEL_PATH
+PROP_GENERATOR_MODEL_PATH = "./video/sample/best_prop_model.pt"
+PRETRAINED_CAP_MODEL_PATH = './video/sample/best_cap_model.pt'
+DEFAULT_PATH = "/home/fadybassel/videobite/public"
 import os
 import sys
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
@@ -92,7 +95,8 @@ class VideoToText:
 
         prop_generator_model_path = PROP_GENERATOR_MODEL_PATH
         pretrained_cap_model_path = PRETRAINED_CAP_MODEL_PATH
-        clip = VideoFileClip(self.video + ".mp4")
+        # clip = VideoFileClip(self.video + ".mp4")
+        clip = VideoFileClip("/home/fadybassel/videobite/public/o2EUvWyuDAU.mp4")
         duration_in_secs = clip.duration
         device_id = 0
         max_prop_per_vid = 100
@@ -125,3 +129,6 @@ class VideoToText:
         print(captions)
         return captions
         # return [{'start': 0.0, 'end': 202.1, 'sentence': 'A boy is skateboarding on a ramp'}, {'start': 0.0, 'end': 23.4, 'sentence': 'A person is seen riding a skateboard down a hill and performing tricks on a ramp'}, {'start': 0.0, 'end': 7.3, 'sentence': 'A man is seen sitting on a beach with a camera and leads into a man riding on a surfboard on a beach'}, {'start': 43.6, 'end': 46.4, 'sentence': 'A man is seen walking down a street with a camera'}, {'start': 46.2, 'end': 49.0, 'sentence': 'A man is seen walking down a ramp'}, {'start': 41.1, 'end': 43.8, 'sentence': 'A man is seen walking down a ramp while a man is shown on a skateboard'}, {'start': 49.0, 'end': 51.6, 'sentence': 'A man is seen walking down a street'}, {'start': 194.3, 'end': 202.0, 'sentence': 'The video ends with the closing credits'}, {'start': 27.2, 'end': 58.7, 'sentence': 'A man is skateboarding on a ramp'}]
+
+
+

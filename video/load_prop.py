@@ -1,7 +1,7 @@
 from video.model.blocks import FeatureEmbedder, Identity, PositionalEncoder, VocabularyEmbedder #THIS
 from video.model.encoders import BiModalEncoder #THIS
 from video.model.decoders import BiModelDecoder #THIS
-
+from pprint import pprint
 import torch
 import torch.nn as nn
 
@@ -21,6 +21,8 @@ class LoadPropModel():
         # load and patch the config for user-defined arguments
         checkpoint = torch.load(prop_generator_model_path, map_location='cpu')
         cfg = checkpoint['config']
+        print("cfgggggggggggggggggggggggggggg")
+        # cfg.device = device ####################################################################################4
         cfg.device = device
         cfg.max_prop_per_vid = max_prop_per_vid
         cfg.pretrained_cap_model_path = pretrained_cap_model_path
@@ -34,8 +36,14 @@ class LoadPropModel():
 
         # define model and load the weights
         model = MultimodalProposalGenerator(cfg, anchors)
-        device = torch.device(cfg.device)
-        torch.cuda.set_device(device)
+        # device = torch.device(cfg.device) ###############################################################################6
+
+        # torch.cuda.set_device(device)
+        # torch.device('cpu',0)
+        torch.device("cpu")
+        device = torch.device("cpu")
+        cfg.device=device
+        #torch.set_device(device) ####################################################################################35
         model.load_state_dict(checkpoint['model_state_dict'])  # if IncompatibleKeys - ignore
         model = model.to(cfg.device)
         model.eval()
@@ -60,6 +68,7 @@ class MultimodalProposalGenerator(nn.Module):
         # load the pre-trained encoder from captioning module
        
         print(f'Pretrained caption path: \n {cfg.pretrained_cap_model_path}')
+        print(self.cfg.device)
         cap_model_cpt = torch.load(cfg.pretrained_cap_model_path, map_location='cpu')
         encoder_config = cap_model_cpt['config']
         self.encoder = BiModalEncoder(
@@ -70,7 +79,7 @@ class MultimodalProposalGenerator(nn.Module):
         encoder_weights = {k: v for k, v in cap_model_cpt['model_state_dict'].items() if 'encoder' in k}
         encoder_weights = {k.replace('module.encoder.', ''): v for k, v in encoder_weights.items()}
         self.encoder.load_state_dict(encoder_weights)
-        self.encoder = self.encoder.to(cfg.device)
+        self.encoder = self.encoder.to(torch.device("cpu"))
         for param in self.encoder.parameters():
             param.requires_grad = cfg.finetune_cap_encoder
         
@@ -104,7 +113,7 @@ class MultimodalProposalGenerator(nn.Module):
         # After multiplying them by the stride, the pixel values are going to be
         # obtained.
         anchors_list = [[anchor / stride] for anchor in anchors_list]
-        anchors_tensor = torch.tensor(anchors_list, device=self.cfg.device)
+        anchors_tensor = torch.tensor(anchors_list, device="cpu")
         # (A, 2) -> (1, A, 1) for broadcasting
         prior_length = anchors_tensor.view(1, anchors_num, 1)
 
@@ -254,7 +263,7 @@ def make_targets(predictions, targets, anchors, stride):
     EPS = 1e-16
 
     # create the placeholders
-    noobj_mask = torch.ones(B, num_anchs, G, device=predictions.device).bool()
+    noobj_mask = torch.ones(B, num_anchs, G,device="cpu" ).bool() #########################################################################3
     obj_mask = torch.zeros_like(noobj_mask).bool()
     target_x = torch.zeros_like(noobj_mask).float()
     target_w = torch.zeros_like(noobj_mask).float()

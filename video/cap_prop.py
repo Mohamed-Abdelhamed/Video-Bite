@@ -113,9 +113,9 @@ def load_features_from_npy(
         stack_flow = crop_a_segment(stack_flow, start, end, duration)
 
     # add batch dimension, send to device
-    stack_vggish = stack_vggish.to(torch.device(device)).unsqueeze(0)
-    stack_rgb = stack_rgb.to(torch.device(device)).unsqueeze(0)
-    stack_flow = stack_flow.to(torch.device(device)).unsqueeze(0)
+    stack_vggish = stack_vggish.to(torch.device("cpu")).unsqueeze(0)
+    stack_rgb = stack_rgb.to(torch.device("cpu")).unsqueeze(0)
+    stack_flow = stack_flow.to(torch.device("cpu")).unsqueeze(0)
 
     return {'audio': stack_vggish,'rgb': stack_rgb,'flow': stack_flow}
 
