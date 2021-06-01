@@ -95,8 +95,15 @@ class VideoToText:
 
         prop_generator_model_path = PROP_GENERATOR_MODEL_PATH
         pretrained_cap_model_path = PRETRAINED_CAP_MODEL_PATH
-        # clip = VideoFileClip(self.video + ".mp4")
-        clip = VideoFileClip("/home/fadybassel/videobite/public/o2EUvWyuDAU.mp4")
+        
+        
+        
+        clip = VideoFileClip(self.video + ".mp4")
+        
+        # clip = VideoFileClip("/home/fadybassel/videobite/public/o2EUvWyuDAU.mp4")
+        
+        
+        
         duration_in_secs = clip.duration
         device_id = 0
         max_prop_per_vid = 100
@@ -132,3 +139,6 @@ class VideoToText:
 
 
 
+# v = VideoToText('o2EUvWyuDAU')
+
+# print(v.extractText())

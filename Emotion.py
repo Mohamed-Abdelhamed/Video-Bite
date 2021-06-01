@@ -113,7 +113,3 @@ class EmotionModel(Handler):
         return arr
 
 
-
-d = DetectEmotionController(['test.mp4']) 
-
-print(d.extract_emotions(0.5))
