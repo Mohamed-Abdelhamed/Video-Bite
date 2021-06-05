@@ -1,0 +1,4 @@
+.vscode/
+.vector_cache/
+selectedVideos/
+__pycache__/
