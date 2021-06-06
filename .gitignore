@@ -2,3 +2,6 @@
 .vector_cache/
 selectedVideos/
 __pycache__/
+utilities/__pycache__/
+video/__pycache__/
+video/model/__pycache__/
