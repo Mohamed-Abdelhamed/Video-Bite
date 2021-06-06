@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from video.model.blocks import (BridgeConnection, LayerStack,
+from video.model.blocks import (LayerStack,
                           PositionwiseFeedForward, ResidualConnection, clone)
 from video.model.multihead_attention import MultiheadedAttention
 
