@@ -1,6 +1,5 @@
 import os
 from time import localtime, strftime
-from shutil import copytree, ignore_patterns
 
 class Config(object):
     '''
