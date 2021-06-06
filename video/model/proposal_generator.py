@@ -3,14 +3,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from video.model.encoders import BiModalEncoder, Encoder
-from utilities.proposal_utils import add_dict_to_another_dict, select_topk_predictions, tiou_vectorized
+from utilities.proposal_utils import add_dict_to_another_dict
 
-from video.model.blocks import Transpose, FeatureEmbedder, Identity, PositionalEncoder
+from video.model.blocks import FeatureEmbedder, Identity, PositionalEncoder
 
 
 class ProposalGenerationHead(nn.Module):
 
-    def __init__(self, d_model_list, kernel_size, dout_p, layer_norm=False):
+    def __init__(self, d_model_list, kernel_size, dout_p):
         super(ProposalGenerationHead, self).__init__()
         assert kernel_size % 2 == 1, 'It is more convenient to use odd kernel_sizes for padding'
         conv_layers = []
@@ -19,11 +19,6 @@ class ProposalGenerationHead(nn.Module):
         N_layers = len(d_model_list) - 1
 
         for n, (in_d, out_d) in enumerate(zip(in_dims, out_dims)):
-            if layer_norm:
-                conv_layers.append(Transpose())
-                conv_layers.append(nn.LayerNorm(in_d))
-                conv_layers.append(Transpose())
-
             if n == 0:
                 conv_layers.append(nn.Conv1d(in_d, out_d, kernel_size, padding=kernel_size//2))
             else:
@@ -81,38 +76,14 @@ class ProposalGenerator(nn.Module):
             self.emb = Identity()
         self.pos_enc = PositionalEncoder(self.d_model_modality, cfg.dout_p)
 
-        # load the pre-trained encoder from captioning module
-        if cfg.pretrained_cap_model_path is not None:
-            print(f'Caption path: \n {cfg.pretrained_cap_model_path}')
-            cap_model_cpt = torch.load(cfg.pretrained_cap_model_path, map_location='cpu')
-            encoder_config = cap_model_cpt['config']
-            if cfg.modality == 'video':
-                self.d_model_modality = encoder_config.d_model_video
-                self.d_ff = encoder_config.d_ff_video
-            elif cfg.modality == 'audio':
-                self.d_model_modality = encoder_config.d_model_audio
-                self.d_ff = encoder_config.d_ff_audio
-            else:
-                raise NotImplementedError
-            self.encoder = Encoder(
-                self.d_model_modality, encoder_config.dout_p, encoder_config.H, self.d_ff, 
-                encoder_config.N
-            )
-            encoder_weights = {k: v for k, v in cap_model_cpt['model_state_dict'].items() if 'encoder' in k}
-            encoder_weights = {k.replace('module.encoder.', ''): v for k, v in encoder_weights.items()}
-            self.encoder.load_state_dict(encoder_weights)
-            self.encoder = self.encoder.to(cfg.device)
-            for param in self.encoder.parameters():
-                param.requires_grad = cfg.finetune_cap_encoder
-        else:
-            self.encoder = Encoder(self.d_model_modality, cfg.dout_p, cfg.H, self.d_ff, cfg.N)
-            # encoder initialization
-            for p in self.encoder.parameters():
-                if p.dim() > 1:
-                    nn.init.xavier_uniform_(p)
+        self.encoder = Encoder(self.d_model_modality, cfg.dout_p, cfg.H, self.d_ff, cfg.N)
+        # encoder initialization
+        for p in self.encoder.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p)
 
         self.detection_layers = torch.nn.ModuleList([
-            ProposalGenerationHead(layer_dims, k, cfg.dout_p, cfg.layer_norm) for k in cfg.kernel_sizes[cfg.modality]
+            ProposalGenerationHead(layer_dims, k, cfg.dout_p) for k in cfg.kernel_sizes[cfg.modality]
         ])
 
         print(self.detection_layers)
@@ -152,28 +123,6 @@ class ProposalGenerator(nn.Module):
         # broadcasting (1, A, 1) * (B, A, S)
         predictions[:, :, :, 1] = prior_length * torch.exp(l)
         predictions[:, :, :, 2] = sigma_o
-
-        if targets is not None:
-            obj_mask, noobj_mask, gt_x, gt_w, gt_obj = make_targets(predictions, targets, 
-                                                                    anchors_tensor, stride)
-            ## Loss
-            # Localization
-            loss_x = self.mse_loss(sigma_c[obj_mask], gt_x[obj_mask])
-            loss_w = self.mse_loss(l[obj_mask], gt_w[obj_mask])
-            loss_loc = loss_x + loss_w
-            # Confidence
-            loss_obj = self.bce_loss(sigma_o[obj_mask], gt_obj[obj_mask])
-            loss_noobj = self.bce_loss(sigma_o[noobj_mask], gt_obj[noobj_mask])
-            loss_conf = self.cfg.obj_coeff * loss_obj + self.cfg.noobj_coeff * loss_noobj
-            # Total loss
-            loss = loss_loc + loss_conf
-
-            losses = {
-                'loss_x': loss_x, 
-                'loss_w': loss_w, 
-                'loss_conf_obj': loss_obj, 
-                'loss_conf_noobj': loss_noobj
-            }
 
         # for NMS: (B, A, S, 3) -> (B, A*S, 3)
         predictions = predictions.view(B, S*self.anchors_num, self.num_logits)
@@ -260,10 +209,10 @@ class MultimodalProposalGenerator(nn.Module):
         dims_A = [cfg.d_model_audio, *cfg.conv_layers_audio, self.num_logits*cfg.anchors_num_audio]
         dims_V = [cfg.d_model_video, *cfg.conv_layers_video, self.num_logits*cfg.anchors_num_video]
         self.detection_layers_A = torch.nn.ModuleList([
-            ProposalGenerationHead(dims_A, k, cfg.dout_p, cfg.layer_norm) for k in cfg.kernel_sizes['audio']
+            ProposalGenerationHead(dims_A, k, cfg.dout_p) for k in cfg.kernel_sizes['audio']
         ])
         self.detection_layers_V = torch.nn.ModuleList([
-            ProposalGenerationHead(dims_V, k, cfg.dout_p, cfg.layer_norm) for k in cfg.kernel_sizes['video']
+            ProposalGenerationHead(dims_V, k, cfg.dout_p) for k in cfg.kernel_sizes['video']
         ])
         
         self.bce_loss = nn.BCELoss()
@@ -307,28 +256,6 @@ class MultimodalProposalGenerator(nn.Module):
         # broadcasting (1, A, 1) * (B, A, S)
         predictions[:, :, :, 1] = prior_length * torch.exp(l)
         predictions[:, :, :, 2] = sigma_o
-
-        if targets is not None:
-            obj_mask, noobj_mask, gt_x, gt_w, gt_obj = make_targets(predictions, targets, 
-                                                                    anchors_tensor, stride)
-            ## Loss
-            # Localization
-            loss_x = self.mse_loss(sigma_c[obj_mask], gt_x[obj_mask])
-            loss_w = self.mse_loss(l[obj_mask], gt_w[obj_mask])
-            loss_loc = loss_x + loss_w
-            # Confidence
-            loss_obj = self.bce_loss(sigma_o[obj_mask], gt_obj[obj_mask])
-            loss_noobj = self.bce_loss(sigma_o[noobj_mask], gt_obj[noobj_mask])
-            loss_conf = self.cfg.obj_coeff * loss_obj + self.cfg.noobj_coeff * loss_noobj
-            # Total loss
-            loss = loss_loc + loss_conf
-
-            losses = {
-                'loss_x': loss_x,
-                'loss_w': loss_w,
-                'loss_conf_obj': loss_obj,
-                'loss_conf_noobj': loss_noobj
-            }
 
         # for NMS: (B, A, S, 3) -> (B, A*S, 3)
         predictions = predictions.view(B, S*anchors_num, self.num_logits)
@@ -385,64 +312,3 @@ class MultimodalProposalGenerator(nn.Module):
         # ], dim=1)
 
         return all_predictions, total_loss, sum_losses_dict_A, sum_losses_dict_V
-
-def make_targets(predictions, targets, anchors, stride):
-    '''
-        The implementation relies on YOLOv3 for object detection
-            - https://github.com/eriklindernoren/PyTorch-YOLOv3/blob/master/models.py
-            - https://github.com/v-iashin/PersonalProjects/blob/master/detector/darknet.py
-    '''
-    B, num_anchs, G, num_feats = predictions.size()
-
-    # classes = 1
-    EPS = 1e-16
-
-    # create the placeholders
-    noobj_mask = torch.ones(B, num_anchs, G, device=predictions.device).bool()
-    obj_mask = torch.zeros_like(noobj_mask).bool()
-    target_x = torch.zeros_like(noobj_mask).float()
-    target_w = torch.zeros_like(noobj_mask).float()
-
-    # image index within the batch, the g.t. label of an object on the image
-    vid_idx = targets[:, 0].long()
-    # ground truth center coordinates and bbox dimensions
-    # since the target bbox coordinates are in seconds, we transoform
-    # them into grid-axis
-    # So, the gt_x will represent the position of the center in grid cells
-    # Similarly, the size sizes are also scaled to grid size
-    gt_x = targets[:, 1] / stride
-    gt_w = targets[:, 2] / stride
-    # ious between scaled anchors (anchors_from_cfg / stride) and gt bboxes
-    gt_anchor_ious = tiou_vectorized(anchors, gt_w.unsqueeze(-1), without_center_coords=True)
-    # selecting the best anchors for the g.t. bboxes
-    best_ious, best_anchors = gt_anchor_ious.max(dim=0)
-
-    # remove a decimal part -> gi point to the grid position to which an object will correspond 
-    # for example: 9.89 -> 9
-    gt_cell = gt_x.long()
-    # helps with RuntimeError: CUDA error: device-side assert triggered
-    # This aims to avoid gt_cell[i] exceeding the bounds
-    gt_cell[gt_cell < 0] = 0
-    gt_cell[gt_cell > G - 1] = G - 1
-    # update the obj and noobj masks.
-    # the noobj mask has 0 where obj mask has 1 and where IoU between
-    # g.t. bbox and anchor is higher than ignore_thresh
-    obj_mask[vid_idx, best_anchors, gt_cell] = 1
-    noobj_mask[vid_idx, best_anchors, gt_cell] = 0
-
-    # center shift: for example 9.89 -> 0.89
-    target_x[vid_idx, best_anchors, gt_cell] = gt_x - gt_x.floor()
-
-    # Yolo predicts the coefficients (log of coefs actually, see exp() in the paper) 
-    # that will be used to multiply with anchor lengths for predicted segment lengths
-    # Therefore, we modify targets and apply log transformation.
-    target_w[vid_idx, best_anchors, gt_cell] = torch.log(gt_w.t() / anchors[best_anchors][:, 0] + EPS)
-    # since YOLO loss penalizes the model only for wrong predictions at the ground truth
-    # cells, we extract only these predictions from the tensor
-    # Extracting the labels from the prediciton tensor
-    pred_x_w = predictions[vid_idx, best_anchors, gt_cell, :2]
-
-    # ground truth objectness
-    target_obj = obj_mask.float()
-
-    return obj_mask, noobj_mask, target_x, target_w, target_obj

@@ -106,20 +106,6 @@ class PositionalEncoder(nn.Module):
         # same as input
         return x
 
-
-class Transpose(nn.Module):
-    """
-        LayerNorm expects (B, S, D) but receives (B, D, S)
-        Conv1d expects (B, D, S) but receives (B, S, D)
-    """
-
-    def __init__(self):
-        super(Transpose, self).__init__()
-
-    def forward(self, x):
-        return x.permute(0, 2, 1)
-
-
 class ResidualConnection(nn.Module):
 
     def __init__(self, size, dout_p):

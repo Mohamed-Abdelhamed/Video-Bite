@@ -1,15 +1,12 @@
-from copy import deepcopy
-
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-from model.blocks import (FeatureEmbedder, Identity,
+ 
+from video.model.blocks import (FeatureEmbedder, Identity,
                           PositionalEncoder, VocabularyEmbedder)
-from model.decoders import BiModelDecoder
-from model.encoders import BiModalEncoder
-from model.generators import Generator
+from video.model.decoders import BiModelDecoder
+from video.model.encoders import BiModalEncoder
 
 
 
@@ -48,8 +45,6 @@ class BiModalTransformer(nn.Module):
             cfg.d_model_audio, cfg.d_model_video, cfg.d_model_caps, cfg.d_model, cfg.dout_p, 
             cfg.H, cfg.d_ff_caps, cfg.N
         )
-
-        self.generator = Generator(cfg.d_model_caps, train_dataset.trg_voc_size)
 
         print('initialization: xavier')
         for p in self.parameters():
