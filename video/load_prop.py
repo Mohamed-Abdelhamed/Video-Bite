@@ -24,7 +24,6 @@ class LoadPropModel():
         cfg.device = device
         cfg.max_prop_per_vid = max_prop_per_vid
         cfg.pretrained_cap_model_path = pretrained_cap_model_path
-        cfg.train_meta_path = './video/data/train.csv'  # in the saved config it is named differently
 
         # load anchors
         anchors = {
@@ -180,55 +179,6 @@ class MultimodalProposalGenerator(nn.Module):
         # ], dim=1)
 
         return all_predictions, total_loss, sum_losses_dict_A, sum_losses_dict_V
-
-def tiou_vectorized(segments1, segments2, without_center_coords=False, center_length=True):
-
-    def center_length_2_start_end(segments):
-        '''there is get_corner_coords(predictions) and has a bit diffrenrent logic. both are kept'''
-        start = segments[:, 0] - segments[:, 1] / 2
-        end = segments[:, 0] + segments[:, 1] / 2
-        return start, end
-
-    # add 'fake' center coordinates. You can use any value, we use zeros
-    if without_center_coords:
-        segments1 = torch.cat([torch.zeros_like(segments1), segments1], dim=1)
-        segments2 = torch.cat([torch.zeros_like(segments2), segments2], dim=1)
-
-    M, D = segments1.shape
-    N, D = segments2.shape
-
-    # TODO: replace with get_corner_coords from localization_utils
-    if center_length:
-        start1, end1 = center_length_2_start_end(segments1)
-        start2, end2 = center_length_2_start_end(segments2)
-    else:
-        start1, end1 = segments1[:, 0], segments1[:, 1]
-        start2, end2 = segments2[:, 0], segments2[:, 1]
-
-    # broadcasting
-    start1 = start1.view(M, 1)
-    end1 = end1.view(M, 1)
-    start2 = start2.view(1, N)
-    end2 = end2.view(1, N)
-
-    # calculate segments for intersection
-    intersection_start = torch.max(start1, start2)
-    intersection_end = torch.min(end1, end2)
-
-    # we make sure that the area is 0 if size of a side is negative
-    # which means that intersection_start > intersection_end which is not feasible
-    # Note: adding one because the coordinates starts at 0 and let's
-    intersection = torch.clamp(intersection_end - intersection_start, min=0.0)
-
-    # finally we calculate union for each pair of segments
-    union1 = (end1 - start1)
-    union2 = (end2 - start2)
-    union = union1 + union2 - intersection
-    union = torch.min(torch.max(end1, end2) - torch.min(start1, start2), union)
-
-    tious = intersection / (union + 1e-8)
-    return tious
-
 
 def add_dict_to_another_dict(one_dict, another_dict):
     another_dict = {k: another_dict.get(k, 0) + v for k, v in one_dict.items()}
