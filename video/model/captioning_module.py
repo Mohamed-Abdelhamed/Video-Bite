@@ -1,7 +1,6 @@
-import torch
 import torch.nn as nn
  
-from video.model.blocks import (FeatureEmbedder, Identity,
+from video.model.blocks import (Identity,
                           PositionalEncoder, VocabularyEmbedder)
 from video.model.decoders import BiModelDecoder
 from video.model.encoders import BiModalEncoder
@@ -38,12 +37,8 @@ class BiModalTransformer(nn.Module):
     def __init__(self, cfg, train_dataset):
         super(BiModalTransformer, self).__init__()
 
-        if cfg.use_linear_embedder:
-            self.emb_A = FeatureEmbedder(cfg.d_aud, cfg.d_model_audio)
-            self.emb_V = FeatureEmbedder(cfg.d_vid, cfg.d_model_video)
-        else:
-            self.emb_A = Identity()
-            self.emb_V = Identity()
+        self.emb_A = Identity()
+        self.emb_V = Identity()
 
         self.emb_C = VocabularyEmbedder(train_dataset.trg_voc_size, cfg.d_model_caps)
         
@@ -63,30 +58,7 @@ class BiModalTransformer(nn.Module):
 
         self.generator = Generator(cfg.d_model_caps, train_dataset.trg_voc_size)
 
-        print('initialization: xavier')
-        for p in self.parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
-        # initialize embedding after, so it will replace the weights
-        # of the prev. initialization
         self.emb_C.init_word_embeddings(train_dataset.train_vocab.vectors, cfg.unfreeze_word_emb)
-
-        # load the pretrained encoder from the proposal (used in ablation studies)
-        if cfg.pretrained_prop_model_path is not None:
-            print(f'Pretrained prop path: \n {cfg.pretrained_prop_model_path}')
-            cap_model_cpt = torch.load(cfg.pretrained_prop_model_path, map_location='cpu')
-            encoder_config = cap_model_cpt['config']
-            self.encoder = BiModalEncoder(
-                encoder_config.d_model_audio, encoder_config.d_model_video, encoder_config.d_model, 
-                encoder_config.dout_p, encoder_config.H, encoder_config.d_ff_audio, 
-                encoder_config.d_ff_video, encoder_config.N
-            )
-            encoder_weights = {k: v for k, v in cap_model_cpt['model_state_dict'].items() if 'encoder' in k}
-            encoder_weights = {k.replace('encoder.', ''): v for k, v in encoder_weights.items()}
-            self.encoder.load_state_dict(encoder_weights)
-            self.encoder = self.encoder.to(cfg.device)
-            for param in self.encoder.parameters():
-                param.requires_grad = cfg.finetune_prop_encoder
 
     def forward(self, src: dict, trg, masks: dict):
         V, A = src['rgb'] + src['flow'], src['audio']

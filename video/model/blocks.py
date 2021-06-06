@@ -46,40 +46,9 @@ class VocabularyEmbedder(nn.Module):
         return x  # (B, seq_len, d_model)
 
     def init_word_embeddings(self, weight_matrix, emb_weights_req_grad=True):
-        if weight_matrix is None:
-            print('Training word embeddings from scratch')
-        else:
-            pretrained_voc_size, pretrained_emb_dim = weight_matrix.shape
-            if self.emb_dim == pretrained_emb_dim:
-                self.embedder = self.embedder.from_pretrained(weight_matrix)
-                self.embedder.weight.requires_grad = emb_weights_req_grad
-                print('Glove emb of the same size as d_model_caps')
-            else:
-                self.embedder = nn.Sequential(
-                    nn.Embedding(self.voc_size, pretrained_emb_dim).from_pretrained(weight_matrix),
-                    nn.Linear(pretrained_emb_dim, self.emb_dim),
-                    nn.ReLU()
-                )
-                self.embedder[0].weight.requires_grad = emb_weights_req_grad
-
-
-class FeatureEmbedder(nn.Module):
-
-    def __init__(self, d_feat, d_model):
-        super(FeatureEmbedder, self).__init__()
-        self.d_model = d_model
-        self.embedder = nn.Linear(d_feat, d_model)
-        self.activation = nn.ReLU()
-
-    def forward(self, x):
-        # (B, S, d_model_m) <- (B, S, D_original_feat_dim)
-        x = self.embedder(x)
-        x = x * np.sqrt(self.d_model)
-        x = self.activation(x)
-
-        # (B, S, d_model_m)
-        return x
-
+        self.embedder = self.embedder.from_pretrained(weight_matrix)
+        self.embedder.weight.requires_grad = emb_weights_req_grad
+        print('Glove emb of the same size as d_model_caps')
 
 class PositionalEncoder(nn.Module):
 

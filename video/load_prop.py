@@ -48,7 +48,6 @@ class MultimodalProposalGenerator(nn.Module):
         assert cfg.modality == 'audio_video'
         self.cfg = cfg
         self.anchors = anchors
-        self.EPS = 1e-16
         self.num_logits = 3  # 3: c, w, obj
         
         self.emb_V = Identity()
@@ -70,8 +69,6 @@ class MultimodalProposalGenerator(nn.Module):
         encoder_weights = {k.replace('module.encoder.', ''): v for k, v in encoder_weights.items()}
         self.encoder.load_state_dict(encoder_weights)
         self.encoder = self.encoder.to(cfg.device)
-        for param in self.encoder.parameters():
-            param.requires_grad = cfg.finetune_cap_encoder
         
         dims_A = [cfg.d_model_audio, *cfg.conv_layers_audio, self.num_logits*cfg.anchors_num_audio]
         dims_V = [cfg.d_model_video, *cfg.conv_layers_video, self.num_logits*cfg.anchors_num_video]
@@ -81,11 +78,8 @@ class MultimodalProposalGenerator(nn.Module):
         self.detection_layers_V = torch.nn.ModuleList([
             ProposalGenerationHead(dims_V, k, cfg.dout_p) for k in cfg.kernel_sizes['video']
         ])
-        
-        self.bce_loss = nn.BCELoss()
-        self.mse_loss = nn.MSELoss()
 
-    def forward_modality(self, x, targets, detection, stride, anchors_list):
+    def forward_modality(self, x, detection, stride, anchors_list):
         anchors_num = len(anchors_list)
         # in case targets is None
         loss = 0
@@ -151,7 +145,7 @@ class MultimodalProposalGenerator(nn.Module):
 
         for layer in self.detection_layers_A:
             props_A, loss_A, losses_A = self.forward_modality(
-                Av, targets, layer, self.cfg.strides['audio'], self.anchors['audio']
+                Av, layer, self.cfg.strides['audio'], self.anchors['audio']
             )
             total_loss_A += loss_A
             all_predictions_A.append(props_A)
@@ -159,7 +153,7 @@ class MultimodalProposalGenerator(nn.Module):
 
         for layer in self.detection_layers_V:
             props_V, loss_V, losses_V = self.forward_modality(
-                Va, targets, layer, self.cfg.strides['video'], self.anchors['video']
+                Va, layer, self.cfg.strides['video'], self.anchors['video']
             )
             total_loss_V += loss_V
             all_predictions_V.append(props_V)
