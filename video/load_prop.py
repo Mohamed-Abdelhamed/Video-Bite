@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 
 class LoadPropModel():
-    def load(self, device, prop_generator_model_path, pretrained_cap_model_path, max_prop_per_vid) -> tuple:
+    def load(self, device, prop_generator_model_path, pretrained_cap_model_path, max_prop_per_vid, cap_cfg, encoder_weights) -> tuple:
         '''Loading pre-trained proposal generator and config object which was used to train the model.
         Args:
             device (int): GPU id.
@@ -32,7 +32,7 @@ class LoadPropModel():
         }
 
         # define model and load the weights
-        model = MultimodalProposalGenerator(cfg, anchors)
+        model = MultimodalProposalGenerator(cfg, anchors, cap_cfg, encoder_weights)
         device = torch.device(cfg.device)
         torch.cuda.set_device(device)
         model.load_state_dict(checkpoint['model_state_dict'])  # if IncompatibleKeys - ignore
@@ -43,9 +43,8 @@ class LoadPropModel():
 
 class MultimodalProposalGenerator(nn.Module):
 
-    def __init__(self, cfg, anchors):
+    def __init__(self, cfg, anchors, cap_cfg, encoder_weights):
         super(MultimodalProposalGenerator, self).__init__()
-        assert cfg.modality == 'audio_video'
         self.cfg = cfg
         self.anchors = anchors
         self.num_logits = 3  # 3: c, w, obj
@@ -56,17 +55,12 @@ class MultimodalProposalGenerator(nn.Module):
         self.pos_enc_A = PositionalEncoder(cfg.d_model_audio, cfg.dout_p)
 
         # load the pre-trained encoder from captioning module
-       
-        print(f'Pretrained caption path: \n {cfg.pretrained_cap_model_path}')
-        cap_model_cpt = torch.load(cfg.pretrained_cap_model_path, map_location='cpu')
-        encoder_config = cap_model_cpt['config']
         self.encoder = BiModalEncoder(
-            encoder_config.d_model_audio, encoder_config.d_model_video, encoder_config.d_model, 
-            encoder_config.dout_p, encoder_config.H, encoder_config.d_ff_audio, 
-            encoder_config.d_ff_video, encoder_config.N
+            cap_cfg.d_model_audio, cap_cfg.d_model_video, cap_cfg.d_model, 
+            cap_cfg.dout_p, cap_cfg.H, cap_cfg.d_ff_audio, 
+            cap_cfg.d_ff_video, cap_cfg.N
         )
-        encoder_weights = {k: v for k, v in cap_model_cpt['model_state_dict'].items() if 'encoder' in k}
-        encoder_weights = {k.replace('module.encoder.', ''): v for k, v in encoder_weights.items()}
+        
         self.encoder.load_state_dict(encoder_weights)
         self.encoder = self.encoder.to(cfg.device)
         
