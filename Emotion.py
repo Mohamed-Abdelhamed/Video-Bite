@@ -1,6 +1,5 @@
 import cv2
 import dlib
-import cv2
 import numpy as np
 from keras.models import model_from_json
 from keras.preprocessing import image
@@ -8,6 +7,7 @@ from keras.preprocessing import image
 
 class DetectEmotionController:
     def __init__(self,smallVideos):
+        print(smallVideos)
         self.smallVideos = smallVideos
 
     #### main function #####
@@ -23,7 +23,6 @@ class DetectEmotionController:
 
 
 class Handler:
-
     def handle_request(self,value):
         pass
 
@@ -35,32 +34,32 @@ class ExtractFrames(Handler):
         self.video=video
 
     def handle_request(self,secondJump):
-                print('In frame extraction')
-                framesList = []
-                cap=cv2.VideoCapture(self.video)
-                if not cap.isOpened():
-                    print('cap was not opened')
-                    cap.open(self.video)
-                # count the number of frames. 
-                frames = cap.get(cv2.CAP_PROP_FRAME_COUNT) 
-                # number of frames per second.
-                fps = int(cap.get(cv2.CAP_PROP_FPS)) 
-                seekFrame=0
-                print('framesss::')
-                print(frames)
-                print('fps::')
-                print(fps)
-                while seekFrame < (frames-fps):
-                        print('in frame oneeeeeeeee')
-                        print(seekFrame)
-                        ret,test_img=cap.read()# captures frame and returns boolean value and captured image
-                        if ret:
-                            gray_img= cv2.cvtColor(test_img, cv2.COLOR_BGR2GRAY)
-                            framesList.append(gray_img)
-                        jump =seekFrame+fps*secondJump
-                        cap.set(cv2.CAP_PROP_POS_FRAMES,jump)
-                        seekFrame=jump
-                return self._successor.handle_request(framesList)
+        print('In frame extraction')
+        framesList = []
+        cap=cv2.VideoCapture(self.video)
+        if not cap.isOpened():
+            print('cap was not opened')
+            cap.open(self.video)
+        # count the number of frames. 
+        frames = cap.get(cv2.CAP_PROP_FRAME_COUNT) 
+        # number of frames per second.
+        fps = int(cap.get(cv2.CAP_PROP_FPS)) 
+        seekFrame=0
+        print('framesss::')
+        print(frames)
+        print('fps::')
+        print(fps)
+        while seekFrame < (frames-fps):
+            print('in frame oneeeeeeeee')
+            print(seekFrame)
+            ret,test_img=cap.read()# captures frame and returns boolean value and captured image
+            if ret:
+                gray_img= cv2.cvtColor(test_img, cv2.COLOR_BGR2GRAY)
+                framesList.append(gray_img)
+            jump =seekFrame+fps*secondJump
+            cap.set(cv2.CAP_PROP_POS_FRAMES,jump)
+            seekFrame=jump
+        return self._successor.handle_request(framesList)
 
 
 
@@ -111,9 +110,3 @@ class EmotionModel(Handler):
             arr[max_index]= arr[max_index]+1
 
         return arr
-
-
-
-d = DetectEmotionController(['test.mp4']) 
-
-print(d.extract_emotions(0.5))

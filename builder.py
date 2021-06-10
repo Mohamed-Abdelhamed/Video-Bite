@@ -37,10 +37,10 @@ class Builder:
 
 class SummaryBuilder(Builder):
    
-   def __init__(self,video):
+   def __init__(self,video_link,video_name):
       self.parts = summaryParts()
-      self.video = video
-   
+      self.video = video_link
+      self.video_name = video_name
    def buildAudio(self):
       # print(self.video)
       # exit()
@@ -51,9 +51,9 @@ class SummaryBuilder(Builder):
    def buildCaption(self):
       #videofeat = featureExtraction(self.video)
       #videoText = VideoToText(videofeat.extractFeatures()) #video to text extraction class      
-      videoText = VideoToText(self.video.rsplit('.', -1)[0]) # take video name without extenions (ex .mp4)
+      videoText = VideoToText(self.video) # take video name without extenions (ex .mp4)
       # videoText = VideoToText(['04Gt01vatkk_248_265.avi'])
-      self.parts.setCaption(videoText.extractText())
+      self.parts.setCaption(videoText.extractText(self.video_name))
       # self.parts.setCaption("This is sentence")
    
    def buildEmotion(self):

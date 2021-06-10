@@ -8,8 +8,6 @@ def load_features_from_npy(
         device: int, get_full_feat=False, pad_feats_up_to: Dict[str, int] = None
     ) -> Dict[str, torch.Tensor]:
     '''Loads the pre-extracted features from numpy files. 
-    This function is conceptually close to `datasets.load_feature.load_features_from_npy` but cleaned up 
-    for demonstration purpose.
 
     Args:
         feature_paths (Dict[str, str]): Paths to the numpy files (keys: 'audio', 'rgb', 'flow).
@@ -34,7 +32,7 @@ def load_features_from_npy(
     stack_vggish = torch.from_numpy(stack_vggish).float()
     stack_rgb = torch.from_numpy(stack_rgb).float()
     stack_flow = torch.from_numpy(stack_flow).float()
-
+    
     # for proposal generation we pad the features
     if get_full_feat:
         stack_vggish = pad_segment(stack_vggish, pad_feats_up_to['audio'], pad_idx)
@@ -66,30 +64,12 @@ def mask(src, trg, pad_idx):
 def make_masks(feature_stacks, captions, modality, pad_idx):
     masks = {}
 
-    if modality == 'video':
-        if captions is None:
-            masks['V_mask'] = mask(feature_stacks['rgb'][:, :, 0], None, pad_idx)
-        else:
-            masks['V_mask'], masks['C_mask'] = mask(feature_stacks['rgb'][:, :, 0], captions, pad_idx)
-    elif modality == 'audio':
-        assert len(feature_stacks['audio'].shape) == 3
-        if captions is None:
-            masks['A_mask'] = mask(feature_stacks['audio'][:, :, 0], None, pad_idx)
-        else:
-            masks['A_mask'], masks['C_mask'] = mask(feature_stacks['audio'][:, :, 0], captions, pad_idx)
-    elif modality == 'audio_video':
-        assert len(feature_stacks['audio'].shape) == 3
-        if captions is None:
-            masks['A_mask'] = mask(feature_stacks['audio'][:, :, 0], None, pad_idx)
-            masks['V_mask'] = mask(feature_stacks['rgb'][:, :, 0], None, pad_idx)
-        else:
-            masks['V_mask'], masks['C_mask'] = mask(feature_stacks['rgb'][:, :, 0], captions, pad_idx)
-            masks['A_mask'] = mask(feature_stacks['audio'][:, :, 0], None, pad_idx)
-    elif modality == 'subs_audio_video':
-        assert len(feature_stacks['audio'].shape) == 3
+    if captions is None:
+        masks['A_mask'] = mask(feature_stacks['audio'][:, :, 0], None, pad_idx)
+        masks['V_mask'] = mask(feature_stacks['rgb'][:, :, 0], None, pad_idx)
+    else:
         masks['V_mask'], masks['C_mask'] = mask(feature_stacks['rgb'][:, :, 0], captions, pad_idx)
         masks['A_mask'] = mask(feature_stacks['audio'][:, :, 0], None, pad_idx)
-        masks['S_mask'] = mask(feature_stacks['subs'], None, pad_idx)
 
     return masks
 
