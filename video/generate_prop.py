@@ -1,7 +1,7 @@
 import torch
-from typing import Dict, List, Union
-import numpy as np
-import torch.nn.functional as F
+from typing import Dict
+from video.model.functions import load_features_from_npy, make_masks
+
 
 class GenerateProposal():
     def Generate(prop_model: torch.nn.Module, feature_paths: Dict[str, str], pad_idx: int, cfg, device: int, duration_in_secs: float) -> torch.Tensor:
@@ -14,118 +14,35 @@ class GenerateProposal():
             device (int): GPU id
             duration_in_secs (float): duration of the video in seconds. Try this tool to obtain the duration:
                 `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 in.mp4`
-
         Returns:
             torch.Tensor: tensor of size (batch=1, num_props, 3) with predicted proposals.
         '''
+        nms_tiou_thresh = 0.4
         # load features
         feature_stacks = load_features_from_npy(
             feature_paths, None, None, duration_in_secs, pad_idx, device, get_full_feat=True, 
             pad_feats_up_to=cfg.pad_feats_up_to
         )
 
-        # form input batch
-        batch = {
-            'feature_stacks': feature_stacks,
-            'duration_in_secs': duration_in_secs
-        }
-
         with torch.no_grad():
             # masking out padding in the input features
-            masks = make_masks(batch['feature_stacks'], None, cfg.modality, pad_idx)
+            masks = make_masks(feature_stacks, None, cfg.modality, pad_idx)
             # inference call
-            predictions, _, _, _ = prop_model(batch['feature_stacks'], None, masks)
+            predictions, _, _, _ = prop_model(feature_stacks, None, masks)
             # (center, length) -> (start, end)
             predictions = get_corner_coords(predictions)
             # sanity-preserving clipping of the start & end points of a segment
-            predictions = trim_proposals(predictions, batch['duration_in_secs'])
+            predictions = trim_proposals(predictions, duration_in_secs)
             # fildering out segments which has 0 or too short length (<0.2) to be a proposal
             predictions = remove_very_short_segments(predictions, shortest_segment_prior=0.2)
             # seƒlect top-[max_prop_per_vid] predictions
             predictions = select_topk_predictions(predictions, k=cfg.max_prop_per_vid)
 
+            predictions = non_max_suppresion(predictions.squeeze(), nms_tiou_thresh)
+            predictions = predictions.unsqueeze(0)
+
         return predictions
 
-def load_features_from_npy(feature_paths: Dict[str, str], start: float, end: float, duration: float, pad_idx: int, device: int, get_full_feat=False, pad_feats_up_to: Dict[str, int] = None) -> Dict[str, torch.Tensor]:
-    '''Loads the pre-extracted features from numpy files. 
-    This function is conceptually close to `datasets.load_feature.load_features_from_npy` but cleaned up 
-    for demonstration purpose.
-
-    Args:
-        feature_paths (Dict[str, str]): Paths to the numpy files (keys: 'audio', 'rgb', 'flow).
-        start (float, None): Start point (in secs) of a proposal, if used for captioning the proposals.
-        end (float, None): Ending point (in secs) of a proposal, if used for captioning the proposals.
-        duration (float): Duration of the original video in seconds.
-        pad_idx (int): The index of the padding token in the training vocabulary.
-        device (int): GPU id.
-        get_full_feat (bool, optional): Whether to output full, untrimmed, feature stacks. Defaults to False.
-        pad_feats_up_to (Dict[str, int], optional): If get_full_feat, pad to this value. Different for audio
-                                                    and video modalities. Defaults to None.
-
-    Returns:
-        Dict[str, torch.Tensor]: A dict holding 'audio', 'rgb' and 'flow' features.
-    '''
-
-    # load features. Please see README in the root folder for info on video features extraction
-
-    feature_paths['audio'] =feature_paths['audio']
-    feature_paths['rgb'] = feature_paths['rgb']
-    feature_paths['flow'] = feature_paths['flow']
-    stack_vggish = np.load(feature_paths['audio'] )
-    stack_rgb = np.load(feature_paths['rgb'])
-    stack_flow = np.load(feature_paths['flow'])
-
-    stack_vggish = torch.from_numpy(stack_vggish).float()
-    stack_rgb = torch.from_numpy(stack_rgb).float()
-    stack_flow = torch.from_numpy(stack_flow).float()
-
-    # for proposal generation we pad the features
-    if get_full_feat:
-        stack_vggish = pad_segment(stack_vggish, pad_feats_up_to['audio'], pad_idx)
-        stack_rgb = pad_segment(stack_rgb, pad_feats_up_to['video'], pad_idx)
-        stack_flow = pad_segment(stack_flow, pad_feats_up_to['video'], pad_idx=0)
-    # for captioning use trim the segment corresponding to a prop
-    else:
-        stack_vggish = crop_a_segment(stack_vggish, start, end, duration)
-        stack_rgb = crop_a_segment(stack_rgb, start, end, duration)
-        stack_flow = crop_a_segment(stack_flow, start, end, duration)
-
-    # add batch dimension, send to device
-    stack_vggish = stack_vggish.to(torch.device("cpu")).unsqueeze(0)
-    stack_rgb = stack_rgb.to(torch.device("cpu")).unsqueeze(0)
-    stack_flow = stack_flow.to(torch.device("cpu")).unsqueeze(0)
-
-    return {'audio': stack_vggish,'rgb': stack_rgb,'flow': stack_flow}
-
-def make_masks(feature_stacks, captions, modality, pad_idx):
-    masks = {}
-
-    if modality == 'video':
-        if captions is None:
-            masks['V_mask'] = mask(feature_stacks['rgb'][:, :, 0], None, pad_idx)
-        else:
-            masks['V_mask'], masks['C_mask'] = mask(feature_stacks['rgb'][:, :, 0], captions, pad_idx)
-    elif modality == 'audio':
-        assert len(feature_stacks['audio'].shape) == 3
-        if captions is None:
-            masks['A_mask'] = mask(feature_stacks['audio'][:, :, 0], None, pad_idx)
-        else:
-            masks['A_mask'], masks['C_mask'] = mask(feature_stacks['audio'][:, :, 0], captions, pad_idx)
-    elif modality == 'audio_video':
-        assert len(feature_stacks['audio'].shape) == 3
-        if captions is None:
-            masks['A_mask'] = mask(feature_stacks['audio'][:, :, 0], None, pad_idx)
-            masks['V_mask'] = mask(feature_stacks['rgb'][:, :, 0], None, pad_idx)
-        else:
-            masks['V_mask'], masks['C_mask'] = mask(feature_stacks['rgb'][:, :, 0], captions, pad_idx)
-            masks['A_mask'] = mask(feature_stacks['audio'][:, :, 0], None, pad_idx)
-    elif modality == 'subs_audio_video':
-        assert len(feature_stacks['audio'].shape) == 3
-        masks['V_mask'], masks['C_mask'] = mask(feature_stacks['rgb'][:, :, 0], captions, pad_idx)
-        masks['A_mask'] = mask(feature_stacks['audio'][:, :, 0], None, pad_idx)
-        masks['S_mask'] = mask(feature_stacks['subs'], None, pad_idx)
-
-    return masks
 
 def get_corner_coords(predictions):
     '''predictions (B, S*A, num_feats)'''
@@ -147,7 +64,6 @@ def trim_proposals(model_output, duration_in_secs):
     return model_output
 
 def remove_very_short_segments(model_output, shortest_segment_prior):
-    model_output = model_output
     # (1, A*S) <-
     lengths = model_output[:, :, 1] - model_output[:, :, 0]
     # (A*S) <-
@@ -172,20 +88,53 @@ def select_topk_predictions(model_output, k):
     model_output = model_output[:, :k, :]
     return model_output
 
-def pad_segment(feature, max_feature_len, pad_idx):
-    S, D = feature.shape
-    assert S <= max_feature_len
-    # pad
-    l, r, t, b = 0, 0, 0, max_feature_len - S
-    feature = F.pad(feature, [l, r, t, b], value=pad_idx)
-    return feature
+def tiou_vectorized(segments1, segments2):
 
-def mask(src, trg, pad_idx):
-    # masking the padding. src shape: (B, S') -> (B, 1, S')
-    src_mask = (src != pad_idx).unsqueeze(1)
-    if trg is not None:
-        trg_mask = (trg != pad_idx).unsqueeze(-2) & subsequent_mask(trg.size(-1)).type_as(src_mask.data)
-        return src_mask, trg_mask
-    else:
-        return src_mask
+    M, D = segments1.shape
+    N, D = segments2.shape
 
+    start1, end1 = segments1[:, 0], segments1[:, 1]
+    start2, end2 = segments2[:, 0], segments2[:, 1]
+
+    # broadcasting
+    start1 = start1.view(M, 1)
+    end1 = end1.view(M, 1)
+    start2 = start2.view(1, N)
+    end2 = end2.view(1, N)
+
+    # calculate segments for intersection
+    intersection_start = torch.max(start1, start2)
+    intersection_end = torch.min(end1, end2)
+
+    # we make sure that the area is 0 if size of a side is negative
+    # which means that intersection_start > intersection_end which is not feasible
+    # Note: adding one because the coordinates starts at 0 and let's
+    intersection = torch.clamp(intersection_end - intersection_start, min=0.0)
+
+    # finally we calculate union for each pair of segments
+    union1 = (end1 - start1)
+    union2 = (end2 - start2)
+    union = union1 + union2 - intersection
+    union = torch.min(torch.max(end1, end2) - torch.min(start1, start2), union)
+
+    tious = intersection / (union + 1e-8)
+    return tious
+
+def non_max_suppresion(video_preds, tIoU_threshold):
+    '''video_preds (AS, num_features)'''
+    # model_output should be sorted according to conf_score, otherwise sort it here
+    model_output_after_nms = []
+    while len(video_preds) > 0:
+        # (1, num_feats) <- (one_vid_pred[0, :].unsqueeze(0))
+        model_output_after_nms.append(video_preds[0, :].unsqueeze(0))
+        if len(video_preds) == 1:
+            break
+        # (1, *) <- (1, num_feats) x (*, num_feats)
+        tious = tiou_vectorized(video_preds[0, :].unsqueeze(0), video_preds[1:, :])
+        # (*) <- (1, *)
+        tious = tious.reshape(-1)
+        # (*', num_feats)
+        video_preds = video_preds[1:, :][tious < tIoU_threshold]
+    # (new_N, D) <- a list of (1, num_feats)
+    model_output = torch.cat(model_output_after_nms)
+    return model_output

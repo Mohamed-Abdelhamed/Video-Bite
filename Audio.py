@@ -1,5 +1,3 @@
-# UPLOAD VIDEO
-
 import sys
 import time
 import requests
@@ -10,11 +8,10 @@ from collections import Counter
 
 class SpeechToText:
   def __init__(self,audio):
-    # self.audio = '/home/markrefaat/videobite/public/skating.mp4'
     self.audio = audio
     self.videoId= ""
     #self.authKey = "773123bf14534e1c823fa8a63eaa5c74"
-    self.authKey = "c9bb18dea137460ba2f72d40b814bded"
+    self.authKey = "e850b404394542748982359cd742f2f6"
 
   def read_file(self,filename, chunk_size=5242880):
     with open(filename, 'rb') as _file:
@@ -47,21 +44,35 @@ class SpeechToText:
     response = requests.post(endpoint, json=json, headers=headers)
     videoId = response.json()['id']
     print(response.json())
-    print(videoId)
     self.videoId=videoId
   
-  def getaudio(self,videoId="jcig1cnlh-d3d8-4fb4-a56a-a7b8799dd9ec"): #q2x7mahw8-a256-4b6d-a9b9-166c828a0253
-    if videoId == "":
-      videoId=self.videoId
+  def getaudio(self,videoId=""): #q2x7mahw8-a256-4b6d-a9b9-166c828a0253
       
-    print("heelooo")
-    endpoint = "https://api.assemblyai.com/v2/transcript/" + videoId
+    if videoId == "":
+      wait = 1
+      self.send_to_api()
+      videoId=self.videoId
+      print("heelooo")
+      endpoint = "https://api.assemblyai.com/v2/transcript/" + videoId
+      headers = {"authorization": self.authKey,}
+      while wait:
+        time.sleep(10)
+        response = requests.get(endpoint, headers=headers)
+        if response.json()['status']=="completed":
+          wait = 0
+    else:
+      endpoint = "https://api.assemblyai.com/v2/transcript/" + videoId
+      headers = {"authorization": self.authKey,} 
+      response = requests.get(endpoint, headers=headers)       
 
-    headers = {"authorization": self.authKey,}
-
-    response = requests.get(endpoint, headers=headers)
     print(response.json()['words'])
     return response.json()['words']
+
+
+
+
+
+
    
 
 

@@ -10,7 +10,8 @@ import requests as req
 from keywords import extractKeywords
 from timestamps import generateTimestamps
 #from image_model import ImageModel
-
+import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 app = Flask(__name__)
 api = Api(app)
